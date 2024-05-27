@@ -1,0 +1,16 @@
+version: '3'  # version of the compose file
+
+services:  # different containers and how they interact with each other
+  db:  # a container called db
+    image: postgres
+    environment:  # environment variables
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: dbname
+    ports:
+      - "6969:6969"
+    volumes:  # this is used for persistent storage it is different from bind mounts with the host filesystem in the sense that named volumes are managed by docker
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:  # named volume in case of failure of the database container
+  postgres_data:

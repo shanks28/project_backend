@@ -4,13 +4,25 @@ services:  # different containers and how they interact with each other
   db:  # a container called db
     image: postgres
     environment:  # environment variables
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: dbname
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "6969:6969"
+      - "6969:5432"
     volumes:  # this is used for persistent storage it is different from bind mounts with the host filesystem in the sense that named volumes are managed by docker
       - postgres_data:/var/lib/postgresql/data
-
+  myapp:
+    build: .
+    environment:
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      NGROK_URL: ${NGROK_URL}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+    ports:
+     - "8000:8080"
+    depends_on:
+      - db
 volumes:  # named volume in case of failure of the database container
   postgres_data:

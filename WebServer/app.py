@@ -5,16 +5,28 @@ import asyncio
 from dotenv import load_dotenv
 import httpx
 from sqlalchemy.orm import Session
+from fastapi.middleware.cors import CORSMiddleware
+origins=[
+    'http://localhost:5500'
+]
+
 from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse
 import os
 load_dotenv()
 app=FastAPI()
 # Base.metadata.create_all(bind=engine)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 github_client=os.getenv('GITHUB_CLIENT_ID')
 github_secret=os.getenv('GITHUB_CLIENT_SECRET')
 ngrok_url=os.getenv('NGROK_URL')
-
 @app.get("/login/github")
 async def github_auth():
     print(github_client)
@@ -55,4 +67,11 @@ async def github_callback(request:Request,code:str):
             )
         user_info = response.json()
         username = user_info.get("login")
-        print(username)
+        # request.session['user']={'username':username}
+    return RedirectResponse('/')
+@app.get('/user/info')
+async def user_info(request:Request):
+    user_details=request.session.get('user')
+    if not user_details:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    return JSONResponse(user_details)

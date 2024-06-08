@@ -7,9 +7,9 @@ import httpx
 from sqlalchemy.orm import Session
 from fastapi.middleware.cors import CORSMiddleware
 origins=[
-    'http://localhost:5500'
+    'http://localhost:5500',
+    '*',
 ]
-
 from fastapi.responses import RedirectResponse
 from fastapi.responses import JSONResponse
 import os

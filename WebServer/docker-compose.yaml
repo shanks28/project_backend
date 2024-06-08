@@ -21,7 +21,7 @@ services:  # different containers and how they interact with each other
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_NAME: ${POSTGRES_DB}
     ports:
-     - "8000:8080"
+     - "8080:8080"
     depends_on:
       - db
 volumes:  # named volume in case of failure of the database container

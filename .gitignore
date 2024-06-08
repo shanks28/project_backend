@@ -1,3 +1,4 @@
 main.py
-requirements.txt
 WebServer/.env
+__pycache__/
+WebServer/conda_pip_requirements.txt

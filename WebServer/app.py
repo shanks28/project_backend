@@ -2,10 +2,12 @@ from fastapi import FastAPI, Request, Response,HTTPException,status
 # from database import SessionLocal,engine
 # from models import Base,User
 import asyncio
+from starlette.middleware.sessions import SessionMiddleware
 from dotenv import load_dotenv
 import httpx
 from sqlalchemy.orm import Session
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 origins=[
     'http://localhost:5500',
     '*',
@@ -23,7 +25,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
+app.add_middleware(SessionMiddleware, secret_key="String")
 github_client=os.getenv('GITHUB_CLIENT_ID')
 github_secret=os.getenv('GITHUB_CLIENT_SECRET')
 ngrok_url=os.getenv('NGROK_URL')
@@ -36,9 +38,6 @@ async def github_auth():
                             f'&scope=read:user user:email')
 @app.get("/")
 async def root():
-    print(github_client)
-    print(github_secret)
-    print(ngrok_url)
     return {"hello"}
 @app.get("/login/github/callback")
 async def github_callback(request:Request,code:str):
@@ -67,11 +66,12 @@ async def github_callback(request:Request,code:str):
             )
         user_info = response.json()
         username = user_info.get("login")
-        # request.session['user']={'username':username}
+        request.session['user']=username
     return RedirectResponse('/')
 @app.get('/user/info')
 async def user_info(request:Request):
     user_details=request.session.get('user')
+    print(user_details)
     if not user_details:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
     return JSONResponse(user_details)

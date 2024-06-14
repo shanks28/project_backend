@@ -1,11 +1,9 @@
 from fastapi import FastAPI, Request, Response,HTTPException,status
-# from database import SessionLocal,engine
-# from models import Base,User
+from models import Base,User
 import asyncio
 from starlette.middleware.sessions import SessionMiddleware
 from dotenv import load_dotenv
 import httpx
-from sqlalchemy.orm import Session
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 origins=[
@@ -71,7 +69,6 @@ async def github_callback(request:Request,code:str):
 @app.get('/user/info')
 async def user_info(request:Request):
     user_details=request.session.get('user')
-    print(user_details)
     if not user_details:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
     return JSONResponse(user_details)

@@ -1,9 +1,9 @@
 from fastapi import FastAPI, Request, HTTPException,status
-from models import Base,User
+from models import Session,User,Repurposed_Content,Content,Platform
 from fastapi import Depends
-from fastapi.responses import RedirectResponse
 from typing import Annotated
 from fastapi import Cookie
+from cryptography.fernet import Fernet
 from starlette.middleware.sessions import SessionMiddleware
 from dotenv import load_dotenv
 import httpx
@@ -12,13 +12,14 @@ from fastapi.responses import JSONResponse
 import os
 from fastapi.middleware.cors import CORSMiddleware
 origins=[
-    'http://localhost:5500',
     '*',
 ]
 
 load_dotenv()
+key=Fernet.generate_key()
+cipher=Fernet(key)
 app=FastAPI()
-# Base.metadata.create_all(bind=engine)
+db=Session()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -54,11 +55,9 @@ async def github_callback(request:Request,code:str):
             },
         )
         token_response=response.json()
-        print(token_response)
         access_token=token_response['access_token']
         if not access_token:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Failed")
-
         async with httpx.AsyncClient() as client:
             response = await client.get(
                 "https://api.github.com/user",
@@ -67,7 +66,10 @@ async def github_callback(request:Request,code:str):
         user_info = response.json()
         username = user_info.get("login")
         response=RedirectResponse('/')
-        print(access_token)
+        if not db.query(User).filter(User.user_name==username):
+            db.add(User(user_name=username))
+            db.commit()
+        access_token=cipher.encrypt(access_token.encode('utf-8')).decode('utf-8')
         response.set_cookie(key="access_token",value=access_token,httponly=True,secure=False)
         response.set_cookie(key="username",value=username,httponly=True,secure=False)
     return response
@@ -75,20 +77,18 @@ async def user_info(request:Request):
     access_token=request.cookies.get("access_token")
     if not access_token:
         return JSONResponse({"error":"No access token"})
-    async with httpx.AsyncClient() as client:
-        response=await client.get(
-            "https://api.github.com/user",
-            headers={"Authorization": f"Bearer {access_token}"}
-        )
-        if response.status_code!=200:
-            return JSONResponse({"error":"Invalid token"})
-    return response.json()
-@app.get("/someurl/")
-async def someurl(request:Request,user_info:dict=Depends(user_info)):
-    print(user_info)
-    return user_info
-# @app.post('/logout')
-# async def logout(request:Request,response:RedirectResponse):
-#     response.delete_cookie('access_token')
-#     response.delete_cookie('username')
-#     return JSONResponse({"logged_out":True})
+    try:
+        access_token=cipher.decrypt(access_token.encode('utf-8')).decode('utf-8')
+        async with httpx.AsyncClient() as client:
+            response=await client.get(
+                "https://api.github.com/user",
+                headers={"Authorization": f"Bearer {access_token}"}
+            )
+            if response.status_code!=200:
+                return JSONResponse({"error":"Invalid token"})
+    except Exception as e:
+        return JSONResponse({"invalid Token":str(e)})
+    return status.HTTP_200_OK
+@app.post("/someurl/")
+async def someurl(request:Request,status:dict=Depends(user_info)):
+    return status

@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request, HTTPException,status
-from models import Session,User,Repurposed_Content,Content,Platform
+from models import User,Repurposed_Content,Content,Platform,get_session
 from fastapi import Depends
 from typing import Annotated
 from fastapi import Cookie
@@ -19,7 +19,7 @@ load_dotenv()
 key=Fernet.generate_key()
 cipher=Fernet(key)
 app=FastAPI()
-db=Session()
+db=get_session()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,

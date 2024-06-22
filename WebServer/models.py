@@ -9,6 +9,7 @@ db_user=os.getenv('POSTGRES_USER')
 db_pass=os.getenv('POSTGRES_PASSWORD')
 db_name=os.getenv('POSTGRES_DB')
 db_host=os.getenv('POSTGRES_HOST')
+data_base_url=os.getenv("DATABASE_URL")
 Base=declarative_base()
 class content_type(Enum):
     Blog='blog'
@@ -45,7 +46,11 @@ class Repurposed_Content(Base):
     title=Column(String(100))
     repurposed_content=Column(Text)
     platform=relationship("Platform",backref="Repurposed_Content")
-DATABASE_URL = f"postgresql://{db_user}:{db_pass}@{db_host}:{6969}/{db_name}"
-engine=create_engine(DATABASE_URL)
+
+
+engine=create_engine(data_base_url)
 Session=sessionmaker(bind=engine,autocommit=False)
 Base.metadata.create_all(bind=engine)
+print("connected")
+def get_session():
+    return Session()

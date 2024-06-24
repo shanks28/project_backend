@@ -4,12 +4,12 @@ from sqlalchemy import Column, Integer, String,ForeignKey,Text,create_engine
 import os
 from dotenv import load_dotenv
 from enum import Enum
+from sqlalchemy import Enum as enumColumn
 load_dotenv()
 db_user=os.getenv('POSTGRES_USER')
 db_pass=os.getenv('POSTGRES_PASSWORD')
 db_name=os.getenv('POSTGRES_DB')
 db_host=os.getenv('POSTGRES_HOST')
-data_base_url=os.getenv("DATABASE_URL")
 Base=declarative_base()
 class content_type(Enum):
     Blog='blog'
@@ -30,6 +30,7 @@ class Content(Base):
     p_id=Column(Integer,ForeignKey('Platform.id'))
     title=Column(String(100))
     original_content=Column(Text)
+    post_type=Column(enumColumn(content_type,default=content_type.Blog))
     platform=relationship("Platform",backref="Content")
 class Platform(Base):
     __tablename__="Platform"
@@ -48,9 +49,9 @@ class Repurposed_Content(Base):
     platform=relationship("Platform",backref="Repurposed_Content")
 
 
-engine=create_engine(data_base_url)
-Session=sessionmaker(bind=engine,autocommit=False)
+data_base_url = f"postgresql://{db_user}:{db_pass}@localhost:5432/{db_name}"
+engine = create_engine(data_base_url)
+Session = sessionmaker(bind=engine, autocommit=False)
 Base.metadata.create_all(bind=engine)
-print("connected")
 def get_session():
     return Session()

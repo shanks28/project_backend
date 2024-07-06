@@ -27,7 +27,7 @@ class Content(Base):
     __tablename__="Content"
     id=Column(Integer,primary_key=True,autoincrement=True)
     user_id=Column(Integer,ForeignKey('User.id'))
-    p_id=Column(Integer,ForeignKey('Platform.id'))
+    p_name=Column(Integer,ForeignKey('Platform.name'))
     title=Column(String(100))
     original_content=Column(Text)
     post_type=Column(enumColumn(content_type,default=content_type.Blog))
@@ -35,14 +35,13 @@ class Content(Base):
 class Platform(Base):
     __tablename__="Platform"
 
-    id=Column(Integer,primary_key=True,autoincrement=True)
-    name=Column(String(100))
+    name=Column(String(100),primary_key=True)
 
 class Repurposed_Content(Base):
     __tablename__="Repurposed_Content"
     id=Column(Integer,primary_key=True,autoincrement=True)
     user_id=Column(Integer,ForeignKey('User.id'))
-    p_id=Column(Integer,ForeignKey('Platform.id'))
+    p_name=Column(Integer,ForeignKey('Platform.name'))
     content_id=Column(Integer,ForeignKey("Content.id"))
     title=Column(String(100))
     repurposed_content=Column(Text)

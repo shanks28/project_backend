@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request, HTTPException,status
-from models import User,Repurposed_Content,Content,Platform,get_session
+from models import User,Repurposed_Content,Content,Platform,get_session,content_type
 from fastapi import Depends
 from datetime import datetime,timedelta
 from dotenv import load_dotenv
@@ -8,7 +8,7 @@ import httpx
 import os
 from fastapi import Request
 import requests
-from newspaper import Article
+from newspaper import Article,ArticleException
 from fastapi.responses import RedirectResponse,JSONResponse
 from jose import jwt,JWTError
 load_dotenv()
@@ -28,7 +28,7 @@ refresh_tokens_store = {} # normally done in redis data store.
 
 @app.get('/')
 async def root(request:Request):
-    return 'Hello'
+    return 'Hellooo'
 async def extract(url):
     try:
         article = Article(url)
@@ -107,14 +107,8 @@ async def github_callback(request: Request, code: str):
         refresh_token_expires = timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
         jwt_access_token = await create_token(data={"sub": username}, expires_delta=access_token_expires)
         jwt_refresh_token = await create_token(data={"sub": username}, expires_delta=refresh_token_expires)
-        user=db.query(User).filter(User.user_name==username)
-        if not user:
-            user=User(user_name=username)
-            db.add(user)
-            db.commit()
         refresh_tokens_store[username] = jwt_refresh_token
         response = RedirectResponse('/')
-
         response.set_cookie(key="access_token", value=jwt_access_token, httponly=True, secure=True, samesite='Strict')
         response.set_cookie(key="refresh_token", value=jwt_refresh_token, httponly=True, secure=True, samesite='Strict')
 
@@ -145,7 +139,7 @@ async def refresh_token(request: Request):
 
     refresh_tokens_store[username] = new_refresh_token
 
-    response = JSONResponse(content={"message": "Token refreshed"})
+    response = JSONResponse(content={"message": "Token refreshed Successfully"})
 
     response.set_cookie(key="access_token", value=new_access_token, httponly=True, secure=True, samesite='lax')#setting access tokens
     response.set_cookie(key="refresh_token", value=new_refresh_token, httponly=True, secure=True, samesite='lax')
@@ -153,12 +147,45 @@ async def refresh_token(request: Request):
     return response
 
 
-@app.post("/repurpose")
+@app.post("/extract")
 async def repurpose(request: Request, body: RequestBody, username: str = Depends(user_info)):
-    userid=db.query(User).filter(User.user_name==username).id
-    content,authors,platform,title = await extract(body.url)
-    print(userid)
-    return {"content": content, "user": userid}
+    user = db.query(User).filter(User.user_name == username).first()
+    if not user:
+        user = User(user_name=username)
+        db.add(user)
+        db.commit()
+        db.refresh(user)  #update the latest state of db
+
+    text, authors, platform_name, title = await extract(body.url)
+
+    existing_content = db.query(Content).filter(Content.title == title).first()
+    if existing_content:
+        return JSONResponse("Content with this title already exists", status_code=status.HTTP_400_BAD_REQUEST)
+
+    platform = db.query(Platform).filter(Platform.name == platform_name).first()
+    if not platform:
+        platform = Platform(name=platform_name)
+        db.add(platform)
+        db.commit()
+        db.refresh(platform)
+
+    try:
+        post_type_enum = content_type(body.type_content.lower()) # converting from String to python-enum
+    except ValueError:
+        return JSONResponse("Invalid Content Type", status_code=status.HTTP_400_BAD_REQUEST)
+
+    new_content = Content(
+        user_id=user.id,
+        title=title,
+        original_content=text,
+        p_name=platform.name,
+        post_type=post_type_enum
+    )
+    db.add(new_content)
+    db.commit()
+    content=db.query(Content.original_content).filter(Content.user_id == user.id).first()
+    print(content)
+    return JSONResponse("Successfully added to db", status_code=status.HTTP_200_OK)
 
 
 # @app.post('/logout')

@@ -3,9 +3,10 @@ from models import User,Repurposed_Content,Content,Platform,get_session,content_
 from fastapi import Depends
 from datetime import datetime,timedelta
 from dotenv import load_dotenv
-from ResponseModels import RequestBody,ResponseModel
+from ResponseModels import RequestBody,ResponseModel,ConnectDevTo
 import httpx
 import os
+from store_token_redis import get_redis_object
 from fastapi import Request
 import requests
 from newspaper import Article,ArticleException
@@ -14,7 +15,7 @@ from jose import jwt,JWTError
 load_dotenv()
 db=get_session()
 app = FastAPI()
-
+redis_object=get_redis_object()
 SECRET_KEY = os.getenv("SECRET_KEY", "your_secret_key")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
@@ -25,6 +26,7 @@ GITHUB_CLIENT_SECRET = os.getenv('GITHUB_CLIENT_SECRET')
 NGROK_URL = os.getenv('NGROK_URL')
 
 refresh_tokens_store = {} # normally done in redis data store.
+dev_tokens={}
 
 @app.get('/')
 async def root(request:Request):
@@ -111,7 +113,7 @@ async def github_callback(request: Request, code: str):
         response = RedirectResponse('/')
         response.set_cookie(key="access_token", value=jwt_access_token, httponly=True, secure=True, samesite='Strict')
         response.set_cookie(key="refresh_token", value=jwt_refresh_token, httponly=True, secure=True, samesite='Strict')
-
+        response.set_cookie(key='github_access_token',value=github_access_token, httponly=True, secure=True, samesite='Strict')
         return response
 
 
@@ -147,7 +149,7 @@ async def refresh_token(request: Request):
     return response
 
 
-@app.post("/extract")
+@app.post("/extract/")
 async def repurpose(request: Request, body: RequestBody, username: str = Depends(user_info)):
     user = db.query(User).filter(User.user_name == username).first()
     if not user:
@@ -187,7 +189,39 @@ async def repurpose(request: Request, body: RequestBody, username: str = Depends
     print(content)
     return JSONResponse("Successfully added to db", status_code=status.HTTP_200_OK)
 
-
+@app.post('/get_stored_content/')
+async def get_all_content(request:Request,username:str=Depends(user_info)):
+    user_id=db.query(User.id).filter(User.user_name==username).first()[0]
+    if not user_id:
+        return JSONResponse("Please Enter a valid content")
+    titles=db.query(Content.title).filter(Content.user_id==user_id).all()
+    print(titles)
+    #all_titles=str(db.query(Content.title).filter(Content.user_id == user_id).all())
+    return (titles)
+@app.post('/store_dev_token/',response_model=str)
+async def store_dev_token(request:Request,token:ConnectDevTo,username:str=Depends(user_info)):
+    try:
+        print(type(token.api_key))
+        token_existing=redis_object.get(username)
+        if not token_existing:
+            redis_object.set(username,(token.api_key))
+        return redis_object.get(username)
+    except Exception as e:
+        return JSONResponse("Error Storing Token")
+    #https://gist.github.com/298e887639407a20b50ba80da11e0df8.git
+@app.post('/get_dev_content/')
+async def get_dev_content(request:Request,username:str=Depends(user_info),token:str=Depends(store_dev_token)):
+    try:
+        headers={'api_key':token}
+        response=requests.get(f"https://dev.to/api/articles/me",headers=headers)
+        print(response.json())
+        if response.status_code==200:
+            articles=response.json()
+            return [{'title':article['title'],"content":article['description']}for article in articles]
+        else:
+            return JSONResponse("Error fetching content")
+    except Exception as e:
+        return JSONResponse("Error fetching content")
 # @app.post('/logout')
 # async def logout(request:Request,response:Response):
 #     refresh_token=request.cookies.get("refresh_token")

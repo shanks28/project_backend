@@ -16,7 +16,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
+  redis:
+    image: redis
+    ports:
+      - '6379:6379'
   myapp:
     build: .
     environment:
@@ -27,11 +30,14 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_HOST: db
+      REDIS_HOST: redis
     ports:
      - "8080:8080"
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_started
     env_file:
       - .env
 

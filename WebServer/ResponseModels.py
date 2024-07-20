@@ -6,3 +6,5 @@ class RequestBody(BaseModel):
 class ResponseModel(BaseModel):
     user_name:str
     userid:int
+class ConnectDevTo(BaseModel):
+    api_key:str

@@ -8,3 +8,10 @@ class ResponseModel(BaseModel):
     userid:int
 class ConnectDevTo(BaseModel):
     api_key:str
+class RepurposeTextDevTo(BaseModel):
+    title:str
+    content:str
+    platform:str
+class RepurposeTextStoredContent(BaseModel):
+    title:str
+    platform:str

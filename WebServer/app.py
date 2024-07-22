@@ -31,7 +31,7 @@ dev_tokens={}
 
 @app.get('/')
 async def root(request:Request):
-    return 'Hellooo'
+    return 'Home Page'
 async def extract(url):
     try:
         article = Article(url)

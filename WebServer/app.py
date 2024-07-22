@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, HTTPException,status
 from models import User,Repurposed_Content,Content,Platform,get_session,content_type
 from fastapi import Depends
 from datetime import datetime,timedelta
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from ResponseModels import RequestBody,ResponseModel,ConnectDevTo,RepurposeTextDevTo,RepurposeTextStoredContent
 import httpx
@@ -13,6 +14,13 @@ from newspaper import Article,ArticleException
 from fastapi.responses import RedirectResponse,JSONResponse
 from jose import jwt,JWTError
 from paraphrase import get_response
+origins = [
+    "*",
+    "http://localhost",
+    "http://localhost:3000",  # Adjust this to the URL of your frontend application
+    # Add other allowed origins as needed
+]
+
 load_dotenv()
 db=get_session()
 app = FastAPI()
@@ -21,6 +29,13 @@ SECRET_KEY = os.getenv("SECRET_KEY", "your_secret_key")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
 
 GITHUB_CLIENT_ID = os.getenv('GITHUB_CLIENT_ID')
 GITHUB_CLIENT_SECRET = os.getenv('GITHUB_CLIENT_SECRET')

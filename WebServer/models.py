@@ -50,7 +50,7 @@ class Repurposed_Content(Base):
 
 
 def get_session():
-    data_base_url = f"postgresql://{db_user}:{db_pass}@db:5431/{db_name}"
+    data_base_url = f"postgresql://{db_user}:{db_pass}@db:5432/{db_name}"
     engine = create_engine(data_base_url)
     Session = sessionmaker(bind=engine, autocommit=False)
     Base.metadata.create_all(bind=engine)

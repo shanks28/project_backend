@@ -1,10 +1,10 @@
-from fastapi import FastAPI, Request, HTTPException,status
+from fastapi import FastAPI, Request, HTTPException,status,Response
 from models import User,Repurposed_Content,Content,Platform,get_session,content_type
 from fastapi import Depends
 from datetime import datetime,timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from ResponseModels import RequestBody,ResponseModel,ConnectDevTo,RepurposeTextDevTo,RepurposeTextStoredContent
+from ResponseModels import RequestBody,ResponseModel,ConnectDevTo,RepurposeTextDevTo,RepurposeTextStoredContent,Front_End_Request
 import httpx
 import os
 from store_token_redis import get_redis_object
@@ -46,7 +46,7 @@ dev_tokens={}
 
 @app.get('/')
 async def root(request:Request):
-    return 'Home Page'
+    return RedirectResponse('https://gen-ai-pi.vercel.app/')
 async def extract(url):
     try:
         article = Article(url)
@@ -60,7 +60,6 @@ async def create_token(data: dict, expires_delta: timedelta):
     expire = datetime.utcnow() + expires_delta
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    print(encoded_jwt)
     return encoded_jwt
 
 
@@ -76,7 +75,6 @@ async def decode_token(token: str):
             )
         return username
     except Exception as e:
-        print(e)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
@@ -136,7 +134,7 @@ async def github_callback(request: Request, code: str):
         response.set_cookie(key="access_token", value=jwt_access_token, httponly=True, secure=True, samesite='Strict')
         response.set_cookie(key="refresh_token", value=jwt_refresh_token, httponly=True, secure=True, samesite='Strict')
         response.set_cookie(key='github_access_token',value=github_access_token, httponly=True, secure=True, samesite='Strict')
-        return response
+        return RedirectResponse('/')
 
 
 async def user_info(request: Request):
@@ -195,7 +193,7 @@ async def repurpose(request: Request, body: RequestBody, username: str = Depends
 
     try:
         post_type_enum = content_type(body.type_content.lower()) # converting from String to python-enum
-    except ValueError:
+    except Exception:
         return JSONResponse("Invalid Content Type", status_code=status.HTTP_400_BAD_REQUEST)
 
     new_content = Content(
@@ -207,19 +205,20 @@ async def repurpose(request: Request, body: RequestBody, username: str = Depends
     )
     db.add(new_content)
     db.commit()
-    content=db.query(Content.original_content).filter(Content.user_id == user.id).first()
-    print(content)
+    db.refresh(new_content)
     return JSONResponse("Successfully added to db", status_code=status.HTTP_200_OK)
 
 @app.post('/get_stored_content/')
 async def get_all_content(request:Request,username:str=Depends(user_info)):
-    user_id=db.query(User.id).filter(User.user_name==username).first()[0]
-    if not user_id:
-        return JSONResponse("Please Enter a valid content")
-    titles=db.query(Content.title).filter(Content.user_id==user_id).all()
-    print(titles)
-    #all_titles=str(db.query(Content.title).filter(Content.user_id == user_id).all())
-    return (titles)
+    try:
+        user_id=db.query(User.id).filter(User.user_name==username).first()
+        if not user_id:
+            return JSONResponse("User not Found")
+        titles=db.query(Content.title).filter(Content.user_id==user_id[0]).all()
+        #all_titles=str(db.query(Content.title).filter(Content.user_id == user_id).all())
+        return list(titles)
+    except Exception:
+        return JSONResponse("User name not found")
 @app.post('/store_dev_token/',response_model=str)
 async def store_dev_token(request:Request,token:ConnectDevTo,username:str=Depends(user_info)):
     try:
@@ -240,7 +239,7 @@ async def get_dev_content(request:Request,username:str=Depends(user_info)):
         response=requests.get(f"https://dev.to/api/articles/me",headers=headers)
         if response.status_code==200:
             articles=response.json()
-            return [{'title':article['title'],"content":article['description']}for article in articles]
+            return list(articles)
         else:
             return JSONResponse("Error fetching content")
     except Exception as e:
@@ -275,12 +274,12 @@ async def repurpose_dev_content(request:Request,title:RepurposeTextDevTo,usernam
         return response
     except Exception as e:
         return JSONResponse("Error repurposing content")
-# @app.post('/logout')
-# async def logout(request:Request,response:Response):
-#     refresh_token=request.cookies.get("refresh_token")
-#     if not refresh_token:
-#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="There is not refresh Token to Logout")
-#     response.delete_cookie(key='access_token')
-#     response.delete_cookie(key="refresh_token")
-#     return JSONResponse({
-#         "message":"Successfully Logged out"},status_code=status.HTTP_200_OK)
+@app.post('/logout')
+async def logout(request:Request,response:Response,username:str=Depends(user_info)):
+    try:
+        response.delete_cookie(key='access_token')
+        response.delete_cookie(key="refresh_token")
+        return JSONResponse({
+            "message":"Successfully Logged out"},status_code=status.HTTP_200_OK)
+    except Exception as e:
+        return JSONResponse("Error logging out")

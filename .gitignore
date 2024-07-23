@@ -5,3 +5,4 @@ WebServer/conda_pip_requirements.txt
 Webserver/fine_tuned_model
 info.txt
 cleaned_requirements.txt
+./requirements.txt

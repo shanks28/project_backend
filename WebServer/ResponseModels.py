@@ -15,3 +15,6 @@ class RepurposeTextDevTo(BaseModel):
 class RepurposeTextStoredContent(BaseModel):
     title:str
     platform:str
+class Front_End_Request(BaseModel):
+    access_token:str
+    refresh_token:str

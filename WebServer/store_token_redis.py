@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 redis_host=os.getenv("REDIS_HOST")
 def get_redis_object():
-    redis_pointer = redis.StrictRedis(host="redis", port=6379, db=0)
+    redis_pointer = redis.StrictRedis(host="redis", port=6389, db=0)
     try:
         return redis_pointer
     except Exception as e:

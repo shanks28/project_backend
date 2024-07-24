@@ -24,8 +24,8 @@ app = FastAPI()
 redis_object=get_redis_object()
 SECRET_KEY = os.getenv("SECRET_KEY", "your_secret_key")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-REFRESH_TOKEN_EXPIRE_DAYS = 7
+ACCESS_TOKEN_EXPIRE_DAYS = 30
+REFRESH_TOKEN_EXPIRE_DAYS = 365
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,  # Allows all origins
@@ -121,7 +121,7 @@ async def github_callback(request: Request, code: str):
             db.add(user)
             db.commit()
             db.refresh(user)
-        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token_expires = timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
         refresh_token_expires = timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
         jwt_access_token = await create_token(data={"sub": username}, expires_delta=access_token_expires)
         jwt_refresh_token = await create_token(data={"sub": username}, expires_delta=refresh_token_expires)
@@ -150,7 +150,7 @@ async def refresh_token(request: Request,tokens:Refresh):
     if refresh_tokens_store.get(username) != refresh_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
 
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expires = timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
     new_access_token = await create_token(data={"sub": username}, expires_delta=access_token_expires)
     # refresh_token_expires = timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     # new_refresh_token = await create_token(data={"sub": username}, expires_delta=refresh_token_expires)

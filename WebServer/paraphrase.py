@@ -11,7 +11,7 @@ def get_response(content,platform="TIMES"):
             {"role": "system", "content": "your task is to rephrase the content i give for this platform{}".format(platform)},
             {"role": "user", "content": "re phrase this {}".format(content)},
         ],
-        max_tokens=150,
+        max_tokens=250,
         temperature=0.7,
     )
     return response.choices[0].message['content'].strip()

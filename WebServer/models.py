@@ -27,25 +27,21 @@ class Content(Base):
     __tablename__="Content"
     id=Column(Integer,primary_key=True,autoincrement=True)
     user_id=Column(Integer,ForeignKey('User.id'))
-    p_name=Column(String(100),ForeignKey('Platform.name'))
     title=Column(String(100))
     original_content=Column(Text)
     post_type=Column(enumColumn(content_type,default=content_type.Blog))
-    platform=relationship("Platform",backref="Content")
-class Platform(Base):
-    __tablename__="Platform"
-
-    name=Column(String(100),primary_key=True)
+# class Platform(Base):
+#     __tablename__="Platform"
+#
+#     name=Column(String(100),primary_key=True)
 
 class Repurposed_Content(Base):
     __tablename__="Repurposed_Content"
     id=Column(Integer,primary_key=True,autoincrement=True)
     user_id=Column(Integer,ForeignKey('User.id'))
-    p_name=Column(String(100),ForeignKey('Platform.name'))
     content_id=Column(Integer,ForeignKey("Content.id"))
     title=Column(String(100))
     repurposed_content=Column(Text)
-    platform=relationship("Platform",backref="Repurposed_Content")
 
 
 

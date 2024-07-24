@@ -1,10 +1,10 @@
 from fastapi import FastAPI, Request, HTTPException,status,Response
-from models import User,Repurposed_Content,Content,Platform,get_session,content_type
+from models import User,Repurposed_Content,Content,get_session,content_type
 from fastapi import Depends
 from datetime import datetime,timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from ResponseModels import RequestBody,ResponseModel,ConnectDevTo,RepurposeTextDevTo,RepurposeTextStoredContent,FrontEndRequest
+from ResponseModels import RequestBody,getContent,ConnectToDev,getDevContent,RepurposeTextStoredContent,RepurposeDevtoContent,Refresh
 import httpx
 import os
 from store_token_redis import get_redis_object
@@ -15,8 +15,7 @@ from fastapi.responses import RedirectResponse,JSONResponse
 from jose import jwt,JWTError
 from paraphrase import get_response
 origins = [
-    "*"  # Adjust this to the URL of your frontend application
-    # Add other allowed origins as needed
+    "*"  # Adjust this to the URL of your frontend applicationd
 ]
 
 load_dotenv()
@@ -40,8 +39,7 @@ GITHUB_CLIENT_SECRET = os.getenv('GITHUB_CLIENT_SECRET')
 NGROK_URL = os.getenv('NGROK_URL')
 
 refresh_tokens_store = {} # normally done in redis data store.
-dev_tokens={}
-
+dev_tokens_store={}
 @app.get('/')
 async def root(request:Request):
     return "HOME PAGE"
@@ -132,7 +130,7 @@ async def github_callback(request: Request, code: str):
         # response.set_cookie(key="access_token", value=jwt_access_token, httponly=True, secure=True, samesite='Strict')
         # response.set_cookie(key="refresh_token", value=jwt_refresh_token, httponly=True, secure=True, samesite='Strict')
         # response.set_cookie(key='github_access_token',value=github_access_token, httponly=True, secure=True, samesite='Strict')
-        return {"access_token":jwt_access_token,"refresh_token":jwt_refresh_token}
+        return JSONResponse({"access_token":jwt_access_token,"refresh_token":jwt_refresh_token})
 
 
 async def user_info(token:str):
@@ -143,7 +141,7 @@ async def user_info(token:str):
 
 
 @app.post("/refresh")
-async def refresh_token(request: Request,tokens:FrontEndRequest):
+async def refresh_token(request: Request,tokens:Refresh):
     refresh_token = tokens.refresh_token
     if not refresh_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No refresh token provided")
@@ -154,14 +152,11 @@ async def refresh_token(request: Request,tokens:FrontEndRequest):
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     new_access_token = await create_token(data={"sub": username}, expires_delta=access_token_expires)
-    refresh_token_expires = timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    new_refresh_token = await create_token(data={"sub": username}, expires_delta=refresh_token_expires)
-
-    refresh_tokens_store[username] = new_refresh_token
-
-    response = JSONResponse(content={"message": "Token refreshed Successfully"})
-
-    return {"access_token":new_access_token,"refresh_token":new_refresh_token}
+    # refresh_token_expires = timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    # new_refresh_token = await create_token(data={"sub": username}, expires_delta=refresh_token_expires)
+    #
+    # refresh_tokens_store[username] = new_refresh_token
+    return {"access_token":new_access_token}
 
 
 @app.post("/extract/")
@@ -169,120 +164,107 @@ async def repurpose(request: Request, body: RequestBody):
     access_token=body.access_token
     username=await user_info(access_token)
     user = db.query(User).filter(User.user_name == username).first()
-    if not user:
-        user = User(user_name=username)
-        db.add(user)
-        db.commit()
-        db.refresh(user)  #update the latest state of db
-
     text, authors, platform_name, title = await extract(body.url)
-
     existing_content = db.query(Content).filter(Content.title == title).first()
     if existing_content:
-        return JSONResponse("Content with this title already exists", status_code=status.HTTP_400_BAD_REQUEST)
-
-    platform = db.query(Platform).filter(Platform.name == platform_name).first()
-    if not platform:
-        platform = Platform(name=platform_name)
-        db.add(platform)
-        db.commit()
-        db.refresh(platform)
-
+        return JSONResponse("This Title is already stored", status_code=status.HTTP_200_OK)
     try:
         post_type_enum = content_type(body.type_content.lower()) # converting from String to python-enum
     except Exception:
-        return JSONResponse("Invalid Content Type", status_code=status.HTTP_400_BAD_REQUEST)
-
+        return JSONResponse("Enter Either blog,social_media,tweet or story only", status_code=status.HTTP_400_BAD_REQUEST)
     new_content = Content(
         user_id=user.id,
         title=title,
         original_content=text,
-        p_name=platform.name,
         post_type=post_type_enum
     )
     db.add(new_content)
     db.commit()
     db.refresh(new_content)
-    return JSONResponse("Successfully added to db", status_code=status.HTTP_200_OK)
+    return JSONResponse("Extracted and Stored in DB", status_code=status.HTTP_200_OK)
 
 @app.post('/get_stored_content/')
-async def get_all_content(request:Request,body:RequestBody):
+async def get_all_content(request:Request,body:getContent):
     try:
         access_token=body.access_token
         username=await user_info(access_token)
-        user_id=db.query(User.id).filter(User.user_name==username).first()
-        if not user_id:
-            return JSONResponse("User not Found")
-        titles=db.query(Content.title).filter(Content.user_id==user_id[0]).all()
+        user=db.query(User).filter(User.user_name==username).first()
+        print(user.id)
+        titles=db.query(Content.title).filter(Content.user_id==user.id).all()
+        print(titles)
+        print(type(titles))
+        titles_json={index:title[0] for index,title in enumerate(titles)}
         #all_titles=str(db.query(Content.title).filter(Content.user_id == user_id).all())
-        return list(titles)
+        return titles_json
     except Exception:
-        return JSONResponse("User name not found")
+        return JSONResponse("User does not exist", status_code=status.HTTP_404_NOT_FOUND)
 @app.post('/store_dev_token/',response_model=str)
-async def store_dev_token(request:Request,token:ConnectDevTo,body:RequestBody):
+async def store_dev_token(request:Request,token:ConnectToDev):
     try:
-        access_token=body.access_token
+        access_token=token.access_token
         username=await user_info(access_token)
-        token_existing=redis_object.get(username)
-        if not token_existing:
-            redis_object.set(username,token.api_key)
-        return redis_object.get(username)
+        dev_token=token.api_key
+        dev_tokens_store[username]=dev_token
+        return dev_tokens_store.get(username)
     except Exception as e:
         return JSONResponse("Error Storing Token")
     #https://gist.github.com/298e887639407a20b50ba80da11e0df8.git
 @app.post('/get_dev_content/')
-async def get_dev_content(request:Request,body:RequestBody):
+async def get_dev_content(request:Request,body:getDevContent):
     try:
         access_token=body.access_token
         username=await user_info(access_token)
-        token=redis_object.get(username)
+        token=dev_tokens_store.get(username)
         if not token:
             return JSONResponse("No DevToken Found")
         headers={'api_key':token}
         response=requests.get(f"https://dev.to/api/articles/me",headers=headers)
         if response.status_code==200:
             articles=response.json()
-            return list(articles)
+            extracted_articles = [{"title": article["title"], "content": article.get("description", "")} for article in
+                                  articles]
+            return extracted_articles
         else:
             return JSONResponse("Error fetching content")
     except Exception as e:
         return JSONResponse("Error fetching content")
 @app.post('/repurpose_stored_content/')
-async def repurpose_stored_content(request:Request,title:RepurposeTextStoredContent,body:RequestBody):
+async def repurpose_stored_content(request:Request,body:RepurposeTextStoredContent):
     try:
         access_token=body.access_token
         username=await user_info(access_token)
-        to_repurpose=title.title
-        content_id=db.query(Content.id).filter(Content.title==to_repurpose).first()[0]
-        stored_content=(db.query(Content.original_content).filter(Content.title==to_repurpose).first())[0][:150]
-        if not stored_content:
-            return ("No Content Found")
-        user_id=db.query(User.id).filter(User.user_name==username).first()[0]
-        repurposed_object=db.query(Repurposed_Content).filter(Repurposed_Content.content_id==content_id).first()
+        title_to_repurpose=body.title
+        content=db.query(Content).filter(Content.title==title_to_repurpose).first()
+        if not content:
+            return JSONResponse("No ContentWith that Title found")
+        cid=content.id
+        stored_content=(db.query(Content).filter(Content.title==title_to_repurpose).first()).original_content
+        user_id=db.query(User).filter(User.user_name==username).first().id
+        repurposed_object=db.query(Repurposed_Content).filter(Repurposed_Content.content_id==cid).first()
         if not repurposed_object:
-            response = get_response(stored_content, title.platform)
-            repurposed_object=Repurposed_Content(user_id=user_id,p_name=title.platform,content_id=content_id,title=to_repurpose,repurposed_content=response)
+            response = get_response(stored_content, body.platform)
+            repurposed_object=Repurposed_Content(user_id=user_id,content_id=cid,title=title_to_repurpose,repurposed_content=response)
             db.add(repurposed_object)
             db.commit()
             db.refresh(repurposed_object)
             return response
-        return db.query(Repurposed_Content).filter(Repurposed_Content.title==to_repurpose).first().repurposed_content
+        return repurposed_object.repurposed_content
     except Exception as e:
         print(e)
-        return JSONResponse("Invalid Content or No Such Platform")
+        return JSONResponse("Invalid Content or no User Found")
 @app.post('/repurpose_dev_content/')
-async def repurpose_dev_content(request:Request,title:RepurposeTextDevTo,body:RequestBody):
+async def repurpose_dev_content(request:Request,body:RepurposeDevtoContent):
     try:
         access_token=body.access_token
         username=await user_info(access_token)
-        content=title.content
-        platform=title.platform
+        content=body.description
+        platform=body.platform
         response=get_response(content, platform)
         return response
     except Exception as e:
         return JSONResponse("Error repurposing content")
 @app.post('/logout')
-async def logout(request:Request,response:Response,body:RequestBody):
+async def logout(request:Request,response:Response,body:Refresh):
     try:
         access_token=body.access_token
         refresh_token=body.refresh_token

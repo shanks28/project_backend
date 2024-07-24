@@ -3,6 +3,8 @@ class RequestBody(BaseModel):
     url:str
     platform:str
     type_content:str
+    access_token:str
+    refresh_token:str
 class ResponseModel(BaseModel):
     user_name:str
     userid:int
@@ -15,6 +17,6 @@ class RepurposeTextDevTo(BaseModel):
 class RepurposeTextStoredContent(BaseModel):
     title:str
     platform:str
-class Front_End_Request(BaseModel):
+class FrontEndRequest(BaseModel):
     access_token:str
     refresh_token:str

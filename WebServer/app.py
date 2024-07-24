@@ -4,7 +4,7 @@ from fastapi import Depends
 from datetime import datetime,timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from ResponseModels import RequestBody,ResponseModel,ConnectDevTo,RepurposeTextDevTo,RepurposeTextStoredContent,Front_End_Request
+from ResponseModels import RequestBody,ResponseModel,ConnectDevTo,RepurposeTextDevTo,RepurposeTextStoredContent,FrontEndRequest
 import httpx
 import os
 from store_token_redis import get_redis_object
@@ -15,9 +15,7 @@ from fastapi.responses import RedirectResponse,JSONResponse
 from jose import jwt,JWTError
 from paraphrase import get_response
 origins = [
-    "*",
-    "http://localhost",
-    "http://localhost:3000",  # Adjust this to the URL of your frontend application
+    "*"  # Adjust this to the URL of your frontend application
     # Add other allowed origins as needed
 ]
 
@@ -46,7 +44,7 @@ dev_tokens={}
 
 @app.get('/')
 async def root(request:Request):
-    return RedirectResponse('https://gen-ai-pi.vercel.app/')
+    return "HOME PAGE"
 async def extract(url):
     try:
         article = Article(url)
@@ -131,22 +129,22 @@ async def github_callback(request: Request, code: str):
         jwt_refresh_token = await create_token(data={"sub": username}, expires_delta=refresh_token_expires)
         refresh_tokens_store[username] = jwt_refresh_token
         response = RedirectResponse('/')
-        response.set_cookie(key="access_token", value=jwt_access_token, httponly=True, secure=True, samesite='Strict')
-        response.set_cookie(key="refresh_token", value=jwt_refresh_token, httponly=True, secure=True, samesite='Strict')
-        response.set_cookie(key='github_access_token',value=github_access_token, httponly=True, secure=True, samesite='Strict')
-        return RedirectResponse('/')
+        # response.set_cookie(key="access_token", value=jwt_access_token, httponly=True, secure=True, samesite='Strict')
+        # response.set_cookie(key="refresh_token", value=jwt_refresh_token, httponly=True, secure=True, samesite='Strict')
+        # response.set_cookie(key='github_access_token',value=github_access_token, httponly=True, secure=True, samesite='Strict')
+        return {"access_token":jwt_access_token,"refresh_token":jwt_refresh_token}
 
 
-async def user_info(request: Request):
-    access_token = request.cookies.get("access_token")
+async def user_info(token:str):
+    access_token=token
     if not access_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     return await decode_token(access_token)
 
 
 @app.post("/refresh")
-async def refresh_token(request: Request):
-    refresh_token = request.cookies.get('refresh_token')
+async def refresh_token(request: Request,tokens:FrontEndRequest):
+    refresh_token = tokens.refresh_token
     if not refresh_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No refresh token provided")
 
@@ -170,7 +168,9 @@ async def refresh_token(request: Request):
 
 
 @app.post("/extract/")
-async def repurpose(request: Request, body: RequestBody, username: str = Depends(user_info)):
+async def repurpose(request: Request, body: RequestBody):
+    access_token=body.access_token
+    username=await user_info(access_token)
     user = db.query(User).filter(User.user_name == username).first()
     if not user:
         user = User(user_name=username)
@@ -209,8 +209,10 @@ async def repurpose(request: Request, body: RequestBody, username: str = Depends
     return JSONResponse("Successfully added to db", status_code=status.HTTP_200_OK)
 
 @app.post('/get_stored_content/')
-async def get_all_content(request:Request,username:str=Depends(user_info)):
+async def get_all_content(request:Request,body:RequestBody):
     try:
+        access_token=body.access_token
+        username=await user_info(access_token)
         user_id=db.query(User.id).filter(User.user_name==username).first()
         if not user_id:
             return JSONResponse("User not Found")
@@ -220,8 +222,10 @@ async def get_all_content(request:Request,username:str=Depends(user_info)):
     except Exception:
         return JSONResponse("User name not found")
 @app.post('/store_dev_token/',response_model=str)
-async def store_dev_token(request:Request,token:ConnectDevTo,username:str=Depends(user_info)):
+async def store_dev_token(request:Request,token:ConnectDevTo,body:RequestBody):
     try:
+        access_token=body.access_token
+        username=await user_info(access_token)
         token_existing=redis_object.get(username)
         if not token_existing:
             redis_object.set(username,token.api_key)
@@ -230,8 +234,10 @@ async def store_dev_token(request:Request,token:ConnectDevTo,username:str=Depend
         return JSONResponse("Error Storing Token")
     #https://gist.github.com/298e887639407a20b50ba80da11e0df8.git
 @app.post('/get_dev_content/')
-async def get_dev_content(request:Request,username:str=Depends(user_info)):
+async def get_dev_content(request:Request,body:RequestBody):
     try:
+        access_token=body.access_token
+        username=await user_info(access_token)
         token=redis_object.get(username)
         if not token:
             return JSONResponse("No DevToken Found")
@@ -245,8 +251,10 @@ async def get_dev_content(request:Request,username:str=Depends(user_info)):
     except Exception as e:
         return JSONResponse("Error fetching content")
 @app.post('/repurpose_stored_content/')
-async def repurpose_stored_content(request:Request,title:RepurposeTextStoredContent,username:str=Depends(user_info)):
+async def repurpose_stored_content(request:Request,title:RepurposeTextStoredContent,body:RequestBody):
     try:
+        access_token=body.access_token
+        username=await user_info(access_token)
         to_repurpose=title.title
         content_id=db.query(Content.id).filter(Content.title==to_repurpose).first()[0]
         stored_content=(db.query(Content.original_content).filter(Content.title==to_repurpose).first())[0][:150]
@@ -266,8 +274,10 @@ async def repurpose_stored_content(request:Request,title:RepurposeTextStoredCont
         print(e)
         return JSONResponse("Invalid Content or No Such Platform")
 @app.post('/repurpose_dev_content/')
-async def repurpose_dev_content(request:Request,title:RepurposeTextDevTo,username:str=Depends(user_info)):
+async def repurpose_dev_content(request:Request,title:RepurposeTextDevTo,body:RequestBody):
     try:
+        access_token=body.access_token
+        username=await user_info(access_token)
         content=title.content
         platform=title.platform
         response=get_response(content, platform)
@@ -275,11 +285,14 @@ async def repurpose_dev_content(request:Request,title:RepurposeTextDevTo,usernam
     except Exception as e:
         return JSONResponse("Error repurposing content")
 @app.post('/logout')
-async def logout(request:Request,response:Response,username:str=Depends(user_info)):
+async def logout(request:Request,response:Response,body:RequestBody):
     try:
-        response.delete_cookie(key='access_token')
-        response.delete_cookie(key="refresh_token")
-        return JSONResponse({
-            "message":"Successfully Logged out"},status_code=status.HTTP_200_OK)
+        access_token=body.access_token
+        refresh_token=body.refresh_token
+        if access_token and refresh_token:
+            return JSONResponse({
+                "message":"Successfully Logged out"},status_code=status.HTTP_200_OK)
+        else:
+            return "Either the access token or refresh token is invalid"
     except Exception as e:
         return JSONResponse("Error logging out")

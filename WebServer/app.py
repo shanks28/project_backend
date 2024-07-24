@@ -161,10 +161,7 @@ async def refresh_token(request: Request,tokens:FrontEndRequest):
 
     response = JSONResponse(content={"message": "Token refreshed Successfully"})
 
-    response.set_cookie(key="access_token", value=new_access_token, httponly=True, secure=True, samesite='lax')#setting access tokens
-    response.set_cookie(key="refresh_token", value=new_refresh_token, httponly=True, secure=True, samesite='lax')
-
-    return response
+    return {"access_token":new_access_token,"refresh_token":new_refresh_token}
 
 
 @app.post("/extract/")

@@ -66,6 +66,7 @@ pip install -r requirements.txt
    Submit social media text posts to the API endpoint to receive tailored content for other platforms.
 
 ## System Design
+![image](https://github.com/user-attachments/assets/af1057b5-624b-4e07-a411-a604890ebb32)
 
 The system is designed to handle:
 

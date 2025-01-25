@@ -65,16 +65,6 @@ pip install -r requirements.txt
 6. **Repurpose Content**:
    Submit social media text posts to the API endpoint to receive tailored content for other platforms.
 
-
-## Project Structure
-
-- `app/`: Contains FastAPI app code.
-- `models/`: Holds pre-trained Google T5 model weights and scripts.
-- `database/`: PostgreSQL scripts and migrations.
-- `docker-compose.yml`: Docker configuration for app and database.
-- `requirements.txt`: Python dependencies.
-- `README.md`: Project documentation.
-
 ## System Design
 
 The system is designed to handle:

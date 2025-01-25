@@ -47,8 +47,8 @@ pip install -r requirements.txt
    Create a `.env` file with the following keys:
    ```env
    DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<database>
-   GOOGLE_CLIENT_ID=<your-google-client-id>
-   GOOGLE_CLIENT_SECRET=<your-google-client-secret>
+   GITHUB_CLIENT_ID=<your-client-id>
+   GITHUB_CLIENT_SECRET=<your-client-secret>
    ```
 
 3. **Run the Application with Docker**:
